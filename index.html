@@ -943,6 +943,12 @@
         </svg>
         案件一覧
       </div>
+      <div class="nav-item" id="nav-customers" onclick="navigateTo('customers')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        顧客管理
+      </div>
     </div>
     <div class="sidebar-footer">
       <div class="user-info" onclick="handleLogout()">
@@ -1155,6 +1161,44 @@
               <p>入金記録がありません</p>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 顧客管理 ===== -->
+    <section id="view-customers" hidden>
+      <div class="page-header">
+        <h1 class="page-title">顧客管理</h1>
+        <p class="page-subtitle">クライアント別の案件状況</p>
+      </div>
+      <div class="page-body">
+        <div class="cases-grid" id="customers-grid">
+          <div class="loading-inline" style="padding:40px 0">
+            <div class="spinner-sm"></div> 読み込み中...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 顧客詳細 ===== -->
+    <section id="view-customer-detail" hidden>
+      <div class="page-header">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" onclick="navigateTo('customers')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            一覧に戻る
+          </button>
+          <div>
+            <h1 class="page-title" id="customer-detail-name">—</h1>
+            <p class="page-subtitle" id="customer-detail-count">案件 — 件</p>
+          </div>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="cases-grid" id="customer-cases-grid">
+          <div class="empty-state" style="grid-column:1/-1"><p>案件がありません</p></div>
         </div>
       </div>
     </section>
@@ -1519,7 +1563,7 @@ function showLoading(show) {
 
 // ========== 画面切り替え ==========
 function showView(id) {
-  ['view-login', 'view-dashboard', 'view-case-detail'].forEach(v => {
+  ['view-login', 'view-dashboard', 'view-case-detail', 'view-customers', 'view-customer-detail'].forEach(v => {
     document.getElementById(v).hidden = (v !== id);
   });
   document.getElementById('app-layout').hidden = (id === 'view-login');
@@ -1534,12 +1578,16 @@ function navigateTo(page) {
     showView('view-dashboard');
     setActiveNav('nav-cases');
     loadCases();
+  } else if (page === 'customers') {
+    showView('view-customers');
+    setActiveNav('nav-customers');
+    loadCustomers();
   }
   closeSidebar();
 }
 
 function setActiveNav(activeId) {
-  ['nav-dashboard', 'nav-cases'].forEach(id => {
+  ['nav-dashboard', 'nav-cases', 'nav-customers'].forEach(id => {
     document.getElementById(id).classList.toggle('active', id === activeId);
   });
 }
@@ -1667,6 +1715,81 @@ function filterCases(status, btn) {
 }
 
 expose({ filterCases });
+
+// ========== 顧客管理 ==========
+function loadCustomers() {
+  const grid = document.getElementById('customers-grid');
+  if (allCases.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p>案件データがありません</p></div>`;
+    return;
+  }
+
+  // clientName でグループ化
+  const map = {};
+  allCases.forEach(c => {
+    const name = c.clientName || '（未設定）';
+    if (!map[name]) map[name] = { total: 0, active: 0, won: 0, lost: 0, cases: [] };
+    map[name].total++;
+    if (['問い合わせ','ヒアリング','見積中','提案中'].includes(c.status)) map[name].active++;
+    if (['受注確定','開発中','納品済'].includes(c.status)) map[name].won++;
+    if (c.status === '失注') map[name].lost++;
+    map[name].cases.push(c);
+  });
+
+  const sorted = Object.entries(map).sort((a, b) => b[1].total - a[1].total);
+
+  grid.innerHTML = sorted.map(([name, d]) => `
+    <div class="case-card" onclick="openCustomerDetail('${esc(name)}')">
+      <div class="case-card-header">
+        <div>
+          <div class="case-client">${esc(name)}</div>
+          <div class="case-name" style="margin-top:2px;font-size:12px;color:var(--text-3)">総案件数 ${d.total} 件</div>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-3);flex-shrink:0">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+      <div class="case-card-footer" style="gap:8px;flex-wrap:wrap">
+        <span class="case-source" style="color:var(--primary-light)">進行中 ${d.active}</span>
+        <span class="case-source" style="color:var(--accent)">受注 ${d.won}</span>
+        <span class="case-source" style="color:var(--danger)">失注 ${d.lost}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function openCustomerDetail(clientName) {
+  const cases = allCases.filter(c => (c.clientName || '（未設定）') === clientName);
+  document.getElementById('customer-detail-name').textContent = clientName;
+  document.getElementById('customer-detail-count').textContent = `案件 ${cases.length} 件`;
+
+  const grid = document.getElementById('customer-cases-grid');
+  if (cases.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p>案件がありません</p></div>`;
+  } else {
+    grid.innerHTML = cases.map(c => `
+      <div class="case-card" onclick="openCaseDetail('${c.id}')">
+        <div class="case-card-header">
+          <div>
+            <div class="case-client">${esc(c.clientName)}</div>
+            <div class="case-name">${esc(c.projectName)}</div>
+          </div>
+          ${statusBadge(c.status)}
+        </div>
+        ${c.memo ? `<div style="font-size:12px;color:var(--text-3);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(c.memo)}</div>` : ''}
+        <div class="case-card-footer">
+          <span class="case-source">${esc(c.source || '—')}</span>
+          <span class="case-date">${formatDate(c.createdAt)}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  showView('view-customer-detail');
+  setActiveNav('nav-customers');
+}
+
+expose({ openCustomerDetail });
 
 function esc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
