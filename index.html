@@ -1002,6 +1002,11 @@
           </div>
         </div>
 
+        <div style="margin-bottom:12px">
+          <input class="form-input" id="search-input" placeholder="🔍 クライアント名・案件名で検索..."
+            oninput="searchCases(this.value)" style="max-width:400px" />
+        </div>
+
         <div class="filter-bar" id="dashboard-filters">
           <button class="filter-chip active" data-status="all" onclick="filterCases('all', this)">すべて</button>
           <button class="filter-chip" data-status="問い合わせ" onclick="filterCases('問い合わせ', this)">問い合わせ</button>
@@ -1264,6 +1269,10 @@
         <label class="form-label">担当メモ</label>
         <textarea class="form-input" id="case-memo" placeholder="案件に関するメモを入力..." rows="3"></textarea>
       </div>
+      <div class="form-group">
+        <label class="form-label">次回フォロー日</label>
+        <input type="date" class="form-input" id="case-follow-up-date" />
+      </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('modal-case')">キャンセル</button>
         <button type="submit" class="btn btn-primary" id="case-submit-btn">保存する</button>
@@ -1515,6 +1524,7 @@ let editingCaseId  = null;
 let editingHearingId  = null;
 let editingEstimateId = null;
 let editingPaymentId  = null;
+const statuses = ['問い合わせ','ヒアリング','見積中','提案中','受注確定','開発中','納品済','失注'];
 
 // ========== グローバル関数の公開 ==========
 // モジュール内から window に公開（インラインイベントハンドラ用）
@@ -1688,14 +1698,16 @@ function updateDashboardStats() {
   }).length;
 }
 
-function renderCases(cases, filter) {
-  const grid = document.getElementById('cases-grid');
-  const filtered = filter === 'all' ? cases : cases.filter(c => c.status === filter);
-  if (filtered.length === 0) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p>該当する案件がありません</p></div>`;
-    return;
-  }
-  grid.innerHTML = filtered.map(c => `
+function renderCaseCard(c) {
+  const followHtml = (() => {
+    if (!c.followUpDate) return '';
+    const today = new Date().toISOString().split('T')[0];
+    const overdue = c.followUpDate < today;
+    return `<div style="font-size:11px;margin-top:4px;color:${overdue ? 'var(--danger)' : 'var(--primary-light)'}">
+      ${overdue ? '⚠️' : '📅'} フォロー: ${c.followUpDate}
+    </div>`;
+  })();
+  return `
     <div class="case-card" onclick="openCaseDetail('${c.id}')">
       <div class="case-card-header">
         <div>
@@ -1705,12 +1717,28 @@ function renderCases(cases, filter) {
         ${statusBadge(c.status)}
       </div>
       ${c.memo ? `<div style="font-size:12px;color:var(--text-3);margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(c.memo)}</div>` : ''}
+      ${followHtml}
       <div class="case-card-footer">
         <span class="case-source">${esc(c.source || '—')}</span>
-        <span class="case-date">${formatDate(c.createdAt)}</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="case-date">${formatDate(c.createdAt)}</span>
+          <select class="status-quick-select" onchange="quickStatusChange('${c.id}', this.value, event)" onclick="event.stopPropagation()" style="font-size:11px;background:var(--bg-3);border:1px solid var(--border);color:var(--text-2);border-radius:4px;padding:2px 4px;cursor:pointer">
+            ${statuses.map(s => `<option value="${s}" ${s === c.status ? 'selected' : ''}>${s}</option>`).join('')}
+          </select>
+        </div>
       </div>
     </div>
-  `).join('');
+  `;
+}
+
+function renderCases(cases, filter) {
+  const grid = document.getElementById('cases-grid');
+  const filtered = filter === 'all' ? cases : cases.filter(c => c.status === filter);
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p>該当する案件がありません</p></div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(renderCaseCard).join('');
 }
 
 function filterCases(status, btn) {
@@ -1720,7 +1748,38 @@ function filterCases(status, btn) {
   renderCases(allCases, status);
 }
 
-expose({ filterCases });
+async function quickStatusChange(caseId, newStatus, event) {
+  event.stopPropagation();
+  try {
+    await updateDoc(doc(db, 'cases', caseId), { status: newStatus, updatedAt: serverTimestamp() });
+    const idx = allCases.findIndex(c => c.id === caseId);
+    if (idx !== -1) allCases[idx].status = newStatus;
+    renderCases(allCases, currentFilter);
+    toast(`ステータスを「${newStatus}」に変更しました`);
+  } catch(err) {
+    toast(`更新エラー: ${err.message}`, 'error');
+  }
+}
+
+function searchCases(query) {
+  const q = query.trim().toLowerCase();
+  if (!q) {
+    renderCases(allCases, currentFilter);
+    return;
+  }
+  const filtered = allCases.filter(c =>
+    (c.clientName || '').toLowerCase().includes(q) ||
+    (c.projectName || '').toLowerCase().includes(q)
+  );
+  const grid = document.getElementById('cases-grid');
+  if (filtered.length === 0) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p>「${esc(query)}」に一致する案件がありません</p></div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map(renderCaseCard).join('');
+}
+
+expose({ filterCases, quickStatusChange, searchCases });
 
 // ========== 顧客管理 ==========
 function loadCustomers() {
@@ -1810,6 +1869,7 @@ function openNewCaseModal() {
   document.getElementById('case-source').value = 'SNS';
   document.getElementById('case-status').value = '問い合わせ';
   document.getElementById('case-memo').value = '';
+  document.getElementById('case-follow-up-date').value = '';
   openModal('modal-case');
 }
 
@@ -1822,6 +1882,7 @@ function openEditCaseModal() {
   document.getElementById('case-source').value = currentCaseDoc.source || 'SNS';
   document.getElementById('case-status').value = currentCaseDoc.status || '問い合わせ';
   document.getElementById('case-memo').value = currentCaseDoc.memo || '';
+  document.getElementById('case-follow-up-date').value = currentCaseDoc.followUpDate || '';
   openModal('modal-case');
 }
 
@@ -1832,13 +1893,14 @@ async function handleCaseSubmit(e) {
   const btn = document.getElementById('case-submit-btn');
   btn.disabled = true;
   const data = {
-    clientName:  document.getElementById('case-client-name').value.trim(),
-    projectName: document.getElementById('case-project-name').value.trim(),
-    source:      document.getElementById('case-source').value,
-    status:      document.getElementById('case-status').value,
-    memo:        document.getElementById('case-memo').value.trim(),
-    updatedAt:   serverTimestamp(),
-    createdBy:   currentUser.uid,
+    clientName:   document.getElementById('case-client-name').value.trim(),
+    projectName:  document.getElementById('case-project-name').value.trim(),
+    source:       document.getElementById('case-source').value,
+    status:       document.getElementById('case-status').value,
+    memo:         document.getElementById('case-memo').value.trim(),
+    followUpDate: document.getElementById('case-follow-up-date').value || null,
+    updatedAt:    serverTimestamp(),
+    createdBy:    currentUser.uid,
   };
   try {
     if (editingCaseId) {
