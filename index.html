@@ -343,7 +343,7 @@
     /* ========== ダッシュボード ========== */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 12px;
       margin-bottom: 24px;
     }
@@ -999,6 +999,16 @@
             <div class="stat-label">今月の失注</div>
             <div class="stat-value text-danger" id="stat-lost">—</div>
             <div class="stat-sub">今月</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">⚠️ フォロー期限超過</div>
+            <div class="stat-value text-danger" id="stat-overdue">—</div>
+            <div class="stat-sub">要対応</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">💰 受注金額合計</div>
+            <div class="stat-value text-accent" id="stat-revenue">—</div>
+            <div class="stat-sub">受注確定〜納品済</div>
           </div>
         </div>
 
@@ -1688,14 +1698,49 @@ function updateDashboardStats() {
   const now = new Date();
   const thisMonth = now.getMonth();
   const thisYear  = now.getFullYear();
-  document.getElementById('stat-total').textContent  = allCases.length;
-  document.getElementById('stat-won').textContent    = allCases.filter(c => ['受注確定','開発中','納品済'].includes(c.status)).length;
-  document.getElementById('stat-active').textContent = allCases.filter(c => ['ヒアリング','見積中','提案中'].includes(c.status)).length;
-  document.getElementById('stat-lost').textContent   = allCases.filter(c => {
+  const today = now.toISOString().split('T')[0];
+
+  document.getElementById('stat-total').textContent   = allCases.length;
+  document.getElementById('stat-won').textContent     = allCases.filter(c => ['受注確定','開発中','納品済'].includes(c.status)).length;
+  document.getElementById('stat-active').textContent  = allCases.filter(c => ['ヒアリング','見積中','提案中'].includes(c.status)).length;
+  document.getElementById('stat-lost').textContent    = allCases.filter(c => {
     if (c.status !== '失注') return false;
     const d = c.createdAt?.toDate?.() || new Date(0);
     return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
   }).length;
+
+  // フォロー期限超過
+  const overdueCount = allCases.filter(c =>
+    c.followUpDate && c.followUpDate < today && c.status !== '失注' && c.status !== '納品済'
+  ).length;
+  document.getElementById('stat-overdue').textContent = overdueCount;
+
+  // 受注金額合計（estimates コレクションから非同期取得）
+  loadRevenueStats();
+}
+
+async function loadRevenueStats() {
+  try {
+    const wonIds = allCases
+      .filter(c => ['受注確定','開発中','納品済'].includes(c.status))
+      .map(c => c.id);
+    if (wonIds.length === 0) {
+      document.getElementById('stat-revenue').textContent = '¥0';
+      return;
+    }
+    // Firestore の in クエリは10件まで。10件以上はバッチ処理
+    let total = 0;
+    for (let i = 0; i < wonIds.length; i += 10) {
+      const batch = wonIds.slice(i, i + 10);
+      const snap = await getDocs(query(collection(db, 'estimates'), where('caseId', 'in', batch)));
+      snap.docs.forEach(d => { total += Number(d.data().amount || 0); });
+    }
+    document.getElementById('stat-revenue').textContent = total > 0
+      ? '¥' + total.toLocaleString('ja-JP')
+      : '¥0';
+  } catch(err) {
+    document.getElementById('stat-revenue').textContent = '取得エラー';
+  }
 }
 
 function renderCaseCard(c) {
