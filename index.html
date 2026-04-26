@@ -1098,6 +1098,12 @@
               <div class="detail-sidebar-card">
                 <div class="detail-sidebar-card-title">ステータス変更</div>
                 <select class="form-input" id="status-select" onchange="handleStatusChange(this.value)"></select>
+                <button class="btn btn-secondary btn-sm" style="margin-top:8px;width:100%" onclick="autoDetectStatus()">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M4.22 4.22l2.12 2.12m11.32 11.32 2.12 2.12M2 12h3m14 0h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
+                  </svg>
+                  ステータスを自動判別
+                </button>
               </div>
             </div>
           </div>
@@ -1939,6 +1945,60 @@ async function handleStatusChange(newStatus) {
 }
 
 expose({ handleStatusChange });
+
+async function autoDetectStatus() {
+  if (!currentCaseId) return;
+  try {
+    const [hearingSnap, estimateSnap, paymentSnap] = await Promise.all([
+      getDocs(query(collection(db, 'hearings'), where('caseId', '==', currentCaseId))),
+      getDocs(query(collection(db, 'estimates'), where('caseId', '==', currentCaseId))),
+      getDocs(query(collection(db, 'payments'), where('caseId', '==', currentCaseId))),
+    ]);
+
+    const hasHearing  = !hearingSnap.empty;
+    const hasEstimate = !estimateSnap.empty;
+    const hasPayment  = !paymentSnap.empty;
+
+    let suggested = '問い合わせ';
+
+    if (hasPayment) {
+      const p = paymentSnap.docs[0].data();
+      if (p.depositStatus === '入金済' && p.balanceStatus === '入金済') {
+        suggested = '納品済';
+      } else if (p.devStarted) {
+        suggested = '開発中';
+      } else {
+        suggested = '受注確定';
+      }
+    } else if (hasEstimate) {
+      const e = estimateSnap.docs[0].data();
+      if (e.presidentApproved) {
+        suggested = '受注確定';
+      } else if (e.sentAt) {
+        suggested = '提案中';
+      } else {
+        suggested = '見積中';
+      }
+    } else if (hasHearing) {
+      suggested = 'ヒアリング';
+    }
+
+    const current = currentCaseDoc.status;
+    if (suggested === current) {
+      toast(`現在のステータス「${current}」は既に最新です`);
+      return;
+    }
+
+    if (confirm(`自動判別結果: 「${suggested}」\n（現在: 「${current}」）\n\nステータスを変更しますか？`)) {
+      await handleStatusChange(suggested);
+      document.getElementById('status-select').value = suggested;
+    }
+  } catch (err) {
+    toast(`自動判別エラー: ${err.message}`, 'error');
+  }
+}
+
+expose({ autoDetectStatus });
 
 // ========== タブ切り替え ==========
 function switchTab(tabId, el) {
