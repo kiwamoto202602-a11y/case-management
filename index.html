@@ -93,6 +93,12 @@
         </svg>
         顧客管理
       </button>
+      <button type="button" class="nav-item" id="nav-ledger" onclick="navigateTo('ledger')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+        </svg>
+        クライアント台帳
+      </button>
     </div>
     <div class="sidebar-footer">
       <button type="button" class="user-info" onclick="handleLogout()" aria-label="ログアウト">
@@ -368,6 +374,91 @@
       <div class="page-body">
         <div class="cases-grid" id="customer-cases-grid">
           <div class="empty-state" style="grid-column:1/-1"><p>案件がありません</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== クライアント台帳 ===== -->
+    <section id="view-ledger" hidden>
+      <div class="page-header">
+        <h1 class="page-title">クライアント台帳</h1>
+        <p class="page-subtitle">継続クライアントの管理・請求書一覧</p>
+        <div class="page-actions">
+          <button class="btn btn-primary" onclick="openNewClientModal()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            新規クライアント
+          </button>
+        </div>
+      </div>
+      <div class="page-body">
+        <div style="display:grid;grid-template-columns:320px 1fr;gap:20px;align-items:start">
+          <!-- 左: クライアント一覧 -->
+          <div>
+            <div class="form-section-title" style="margin-bottom:8px">クライアント一覧</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border)">
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-2);font-weight:500">名前</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-2);font-weight:500">月額</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-2);font-weight:500">サービス</th>
+                  <th style="padding:6px 8px"></th>
+                </tr>
+              </thead>
+              <tbody id="ledger-client-tbody">
+                <tr><td colspan="4" style="text-align:center;color:#94a3b8;padding:24px">読み込み中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- 右: 詳細パネル -->
+          <div id="ledger-detail" hidden>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+              <h2 class="page-title" id="ledger-client-name-display" style="font-size:18px;margin:0">—</h2>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-secondary btn-sm" onclick="openEditClientModal()">編集</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteClient()">削除</button>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+              <div class="detail-field">
+                <div class="detail-field-label">月額費用</div>
+                <div class="detail-field-value" id="ledger-client-monthly">—</div>
+              </div>
+              <div class="detail-field">
+                <div class="detail-field-label">サービス内容</div>
+                <div class="detail-field-value" id="ledger-client-services">—</div>
+              </div>
+              <div class="detail-field" style="grid-column:1/-1">
+                <div class="detail-field-label">メモ</div>
+                <div class="detail-field-value" id="ledger-client-memo" style="white-space:pre-wrap;color:var(--text-2);font-size:13px"></div>
+              </div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div class="form-section-title" style="margin:0">請求書一覧</div>
+              <button class="btn btn-primary btn-sm" onclick="openNewInvoiceModal()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                </svg>
+                請求書追加
+              </button>
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border)">
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-2);font-weight:500">請求番号</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-2);font-weight:500">金額</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-2);font-weight:500">発行日</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-2);font-weight:500">支払期限</th>
+                  <th style="text-align:left;padding:6px 8px;color:var(--text-2);font-weight:500">ステータス</th>
+                  <th style="padding:6px 8px"></th>
+                </tr>
+              </thead>
+              <tbody id="ledger-invoice-tbody">
+                <tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:16px">請求書なし</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </section>
@@ -660,6 +751,101 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('modal-payment')">キャンセル</button>
+        <button type="submit" class="btn btn-primary">保存する</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- クライアントモーダル -->
+<div class="modal-overlay" id="modal-client" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="client-modal-title">
+    <div class="modal-header">
+      <h2 class="modal-title" id="client-modal-title">新規クライアント</h2>
+      <button type="button" class="modal-close" onclick="closeModal('modal-client')" aria-label="閉じる">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <form id="form-client" onsubmit="handleClientSubmit(event)">
+      <div class="form-group">
+        <label class="form-label" for="client-name">クライアント名 *</label>
+        <input class="form-input" id="client-name" placeholder="株式会社○○" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="client-monthly-fee">月額費用（円）</label>
+        <input class="form-input" type="number" id="client-monthly-fee" placeholder="50000" min="0" step="1000" />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="client-services">サービス内容（カンマ区切り）</label>
+        <textarea class="form-input" id="client-services" placeholder="保守, SEO対応, 月次レポート" rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="client-memo">メモ</label>
+        <textarea class="form-input" id="client-memo" placeholder="担当者・連絡先・特記事項など..." rows="3"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-client')">キャンセル</button>
+        <button type="submit" class="btn btn-primary">保存する</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 請求書モーダル -->
+<div class="modal-overlay" id="modal-invoice" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="invoice-modal-title">
+    <div class="modal-header">
+      <h2 class="modal-title" id="invoice-modal-title">請求書追加</h2>
+      <button type="button" class="modal-close" onclick="closeModal('modal-invoice')" aria-label="閉じる">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <form id="form-invoice" onsubmit="handleInvoiceSubmit(event)">
+      <input type="hidden" id="invoice-client-id" />
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="invoice-no">請求番号</label>
+          <input class="form-input" id="invoice-no" placeholder="INV-2026-001" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="invoice-amount">請求金額（円）*</label>
+          <input class="form-input" type="number" id="invoice-amount" placeholder="50000" min="0" step="100" required />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="invoice-issue-date">発行日</label>
+          <input class="form-input" type="date" id="invoice-issue-date" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="invoice-due-date">支払期限</label>
+          <input class="form-input" type="date" id="invoice-due-date" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label" for="invoice-status">ステータス</label>
+          <select class="form-input" id="invoice-status">
+            <option value="未払い">未払い</option>
+            <option value="部分支払">部分支払</option>
+            <option value="支払済">支払済</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="invoice-paid-amount">入金済金額（円）</label>
+          <input class="form-input" type="number" id="invoice-paid-amount" placeholder="0" min="0" step="100" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="invoice-memo">メモ</label>
+        <textarea class="form-input" id="invoice-memo" placeholder="備考・振込先など..." rows="2"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-invoice')">キャンセル</button>
         <button type="submit" class="btn btn-primary">保存する</button>
       </div>
     </form>
